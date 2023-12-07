@@ -57,6 +57,9 @@ void searchFileOrDir(const char *currentDir, const char *targetName) {
 		exit(EXIT_FAILURE);
 	}
 	
+	pthread_t threads[10000];
+	int index = 0;
+
 	struct dirent *entry;
 	while ((entry = readdir(dir)) != NULL) {
 		if (entry->d_type == DT_DIR) {
@@ -66,7 +69,6 @@ void searchFileOrDir(const char *currentDir, const char *targetName) {
 			}
 
 			// call a new thread
-			pthread_t th;
 			char* path = (char*)malloc(sizeof(char) * MAX_INPUT_LEN);
 			sprintf(path, "%s%s/", currentDir, entry->d_name);
 			struct SearchArg *arg = (struct SearchArg*)malloc(sizeof(struct SearchArg));
@@ -74,22 +76,24 @@ void searchFileOrDir(const char *currentDir, const char *targetName) {
 			strcpy(arg->dirname, path);
 			strcpy(arg->query, targetName);
 
-			if (pthread_create(&th, NULL, searchThread, (void*)arg) != 0) {
+			if (pthread_create(&threads[index++], NULL, searchThread, (void*)arg) != 0) {
 				perror("[-] Failed to create a thread");
 				exit(EXIT_FAILURE);
 			}
-
 		}
 
 		else if (strcmp(entry->d_name, targetName) == 0) {
-			// lock stdout to avoid interfering between threads
-			flockfile(stdout);
 			printf("[+] Found:\n %s%s\n\n", currentDir, targetName);
 		}
 	}
 
-	// unlock stdout for other threads
-	funlockfile(stdout);
+
+	for (int i = 1; i < index; i++) {
+		if (pthread_join(threads[i], NULL) < 0) {
+			perror("[-] Failed to join a thread");
+			exit(EXIT_FAILURE);
+		}
+	}
 
 	closedir(dir);
 }
